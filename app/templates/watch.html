@@ -251,17 +251,22 @@
         <div>
             <h2 class="font-bold text-base mb-3">Open with</h2>
             <div class="apps-row">
-                <a href="vlc://{{ base_url }}/stream/{{ file.short_code }}" class="app-link">
+                <a href="#" id="open-vlc" class="app-link">
                     <i class="fas fa-play"></i> VLC Player
                 </a>
-                <a href="mxplayer://{{ base_url }}/stream/{{ file.short_code }}" class="app-link">
+                <a href="#" id="open-mx" class="app-link">
                     <i class="fas fa-play"></i> MX Player
                 </a>
-                <a href="nplayer-http://{{ base_url }}/stream/{{ file.short_code }}" class="app-link">
+                <a href="#" id="open-nplayer" class="app-link">
                     <i class="fas fa-play"></i> nPlayer
                 </a>
+                <a href="#" id="copy-link" class="app-link">
+                    <i class="fas fa-copy"></i> Copy link
+                </a>
             </div>
+            <p class="text-xs opacity-60 mt-2" id="open-with-hint"></p>
         </div>
+
     </section>
 
     <div class="community-grid">
@@ -284,6 +289,85 @@
     let currentAudioTrack = -1;  // -1 = using original stream
     let tracksData = null;
     let player = null;
+
+    /* ---------- "Open with" external player links (platform aware) ---------- */
+    const STREAM_URL = new URL(ORIGINAL_SRC, window.location.origin).href;   // https://domain/stream/code
+    const STREAM_NO_SCHEME = STREAM_URL.replace(/^https?:\/\//, '');
+    const FILE_TITLE = {{ file.filename|tojson }};
+    const UA = navigator.userAgent || '';
+    const IS_ANDROID = /Android/i.test(UA);
+    const IS_IOS = /iPad|iPhone|iPod/i.test(UA) || (/Macintosh/.test(UA) && navigator.maxTouchPoints > 1);
+
+    function androidIntent(pkg, cls) {
+        // Android players do not register custom URL schemes; they need an intent:// URL.
+        let i = 'intent://' + STREAM_NO_SCHEME + '#Intent;scheme=' + window.location.protocol.replace(':', '');
+        i += ';action=android.intent.action.VIEW;type=video/*;package=' + pkg;
+        if (cls) i += ';component=' + pkg + '/' + cls;
+        i += ';S.title=' + encodeURIComponent(FILE_TITLE);
+        i += ';end';
+        return i;
+    }
+
+    function playerLinks() {
+        if (IS_ANDROID) {
+            return {
+                vlc: androidIntent('org.videolan.vlc'),
+                mx: androidIntent('com.mxtech.videoplayer.ad'),
+                mxAlt: androidIntent('com.mxtech.videoplayer.pro'),
+                nplayer: androidIntent('com.newin.nplayer.nplayer'),
+            };
+        }
+        if (IS_IOS) {
+            return {
+                vlc: 'vlc-x-callback://x-callback-url/stream?url=' + encodeURIComponent(STREAM_URL),
+                mx: 'mxplayer://' + STREAM_URL,
+                nplayer: 'nplayer-' + STREAM_URL,
+            };
+        }
+        // Desktop: VLC has no reliable scheme, hand over the raw URL
+        return { vlc: STREAM_URL, mx: STREAM_URL, nplayer: STREAM_URL };
+    }
+
+    const LINKS = playerLinks();
+
+    function openExternal(url, fallback) {
+        const t = setTimeout(() => {
+            if (fallback) window.location.href = fallback;
+        }, 1200);
+        window.addEventListener('blur', () => clearTimeout(t), { once: true });
+        window.location.href = url;
+    }
+
+    function wireOpenWith() {
+        const vlcEl = document.getElementById('open-vlc');
+        const mxEl = document.getElementById('open-mx');
+        const npEl = document.getElementById('open-nplayer');
+        const copyEl = document.getElementById('copy-link');
+        const hint = document.getElementById('open-with-hint');
+
+        if (vlcEl) vlcEl.addEventListener('click', (e) => { e.preventDefault(); openExternal(LINKS.vlc); });
+        if (mxEl) mxEl.addEventListener('click', (e) => { e.preventDefault(); openExternal(LINKS.mx, LINKS.mxAlt); });
+        if (npEl) npEl.addEventListener('click', (e) => { e.preventDefault(); openExternal(LINKS.nplayer); });
+
+        if (copyEl) copyEl.addEventListener('click', async (e) => {
+            e.preventDefault();
+            try {
+                await navigator.clipboard.writeText(STREAM_URL);
+                copyEl.innerHTML = '<i class="fas fa-check"></i> Copied';
+                setTimeout(() => { copyEl.innerHTML = '<i class="fas fa-copy"></i> Copy link'; }, 2000);
+            } catch (err) {
+                window.prompt('Copy this stream link', STREAM_URL);
+            }
+        });
+
+        if (hint) {
+            hint.textContent = IS_ANDROID
+                ? 'Not opening? Copy the link and paste it in your player (VLC: Menu > Stream).'
+                : (IS_IOS ? 'Make sure the app is installed, then tap again.' : 'Paste the copied link into VLC: File > Open Network Stream.');
+        }
+    }
+    wireOpenWith();
+
 
     // Initialize Plyr
     player = new Plyr('#player', {
