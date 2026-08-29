@@ -6,10 +6,58 @@
 <link rel="stylesheet" href="https://cdn.plyr.io/3.7.8/plyr.css" />
 
 <style>
-    /* Audio Track Selector Styles */
+    :root {
+        --stream-accent: #ef4444;
+        --stream-accent-dark: #b91c1c;
+        --stream-surface: rgba(13, 13, 16, 0.92);
+        --stream-border: rgba(255, 255, 255, 0.1);
+        --stream-muted: #9ca3af;
+    }
+    .stream-shell { max-width: 1100px; margin: 0 auto; }
+    .stream-kicker {
+        display: inline-flex; align-items: center; gap: .5rem; margin-bottom: .75rem;
+        color: #fca5a5; font-size: .72rem; font-weight: 700; text-transform: uppercase;
+        letter-spacing: .12em;
+    }
+    .stream-kicker::before { content: ''; width: 7px; height: 7px; border-radius: 50%; background: var(--stream-accent); box-shadow: 0 0 0 5px rgba(239,68,68,.12); }
+    .player-frame {
+        overflow: hidden; background: #000; border: 1px solid var(--stream-border);
+        border-radius: 14px; box-shadow: 0 28px 80px rgba(0,0,0,.55);
+    }
+    .player-frame .plyr { --plyr-color-main: var(--stream-accent); }
+    .stream-panel {
+        margin-top: 1rem; padding: 1.5rem; background: var(--stream-surface);
+        backdrop-filter: blur(20px); border: 1px solid var(--stream-border); border-radius: 14px;
+    }
+    .file-title { overflow-wrap: anywhere; line-height: 1.18; }
+    .file-meta { display: flex; flex-wrap: wrap; gap: .6rem 1.1rem; color: var(--stream-muted); font-size: .84rem; }
+    .file-meta span { display: inline-flex; align-items: center; gap: .4rem; }
+    .stream-actions { display: flex; flex-wrap: wrap; gap: .65rem; }
+    .stream-action {
+        min-height: 44px; display: inline-flex; align-items: center; justify-content: center; gap: .55rem;
+        padding: .7rem 1.1rem; border-radius: 8px; font-weight: 700; transition: .2s ease;
+    }
+    .stream-action-primary { background: var(--stream-accent); color: white; }
+    .stream-action-primary:hover { background: var(--stream-accent-dark); transform: translateY(-1px); }
+    .stream-action-secondary { background: rgba(255,255,255,.06); border: 1px solid var(--stream-border); }
+    .stream-action-secondary:hover { background: rgba(255,255,255,.11); }
+    .stream-stats { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); border: 1px solid var(--stream-border); border-radius: 10px; overflow: hidden; }
+    .stream-stat { min-width: 0; padding: 1rem; border-right: 1px solid var(--stream-border); }
+    .stream-stat:last-child { border-right: 0; }
+    .stream-stat-label { display: block; margin-bottom: .3rem; color: #6b7280; font-size: .68rem; font-weight: 700; letter-spacing: .1em; text-transform: uppercase; }
+    .stream-stat-value { display: block; overflow: hidden; color: #f3f4f6; font-size: .92rem; font-weight: 700; text-overflow: ellipsis; white-space: nowrap; }
+    .status-online { color: #4ade80; }
+    .apps-row { display: flex; flex-wrap: wrap; gap: .6rem; }
+    .app-link { display: inline-flex; align-items: center; gap: .5rem; padding: .65rem .85rem; background: rgba(255,255,255,.045); border: 1px solid var(--stream-border); border-radius: 8px; color: #d1d5db; font-size: .88rem; font-weight: 600; transition: .2s ease; }
+    .app-link:hover { color: white; border-color: rgba(239,68,68,.55); background: rgba(239,68,68,.1); }
+    .community-grid { display: grid; grid-template-columns: 1fr 1fr; gap: .75rem; margin-top: .75rem; }
+    .community-link { display: flex; align-items: center; gap: .8rem; padding: .9rem 1rem; background: rgba(255,255,255,.035); border: 1px solid var(--stream-border); border-radius: 10px; transition: .2s ease; }
+    .community-link:hover { background: rgba(255,255,255,.075); border-color: rgba(255,255,255,.18); }
+    .community-icon { width: 38px; height: 38px; flex: 0 0 38px; display: grid; place-items: center; border-radius: 8px; background: rgba(239,68,68,.13); color: #f87171; }
+    .community-label { display: block; color: #6b7280; font-size: .65rem; font-weight: 700; letter-spacing: .09em; text-transform: uppercase; }
+    .community-name { display: block; overflow: hidden; font-size: .88rem; font-weight: 700; text-overflow: ellipsis; white-space: nowrap; }
     .track-selector-container {
-        display: none;
-        margin-bottom: 1rem;
+        display: none; margin-top: 1rem;
     }
     .track-selector-container.visible {
         display: block;
@@ -17,18 +65,13 @@
     .track-selector-bar {
         display: flex;
         align-items: center;
-        gap: 1rem;
-        padding: 0.75rem 1.25rem;
-        background: rgba(255, 255, 255, 0.05);
-        backdrop-filter: blur(12px);
-        border: 1px solid rgba(255, 255, 255, 0.1);
-        border-radius: 1rem;
+        gap: .8rem; padding: .8rem 1rem; background: var(--stream-surface);
+        backdrop-filter: blur(20px); border: 1px solid var(--stream-border); border-radius: 10px;
     }
     .track-selector-bar .track-icon {
         width: 36px;
         height: 36px;
-        background: linear-gradient(135deg, #6366f1, #a855f7);
-        border-radius: 10px;
+        background: rgba(239,68,68,.15); color: #f87171; border-radius: 8px;
         display: flex;
         align-items: center;
         justify-content: center;
@@ -62,12 +105,12 @@
         background-position: right 0.75rem center;
     }
     .track-selector-bar select:hover {
-        border-color: rgba(99, 102, 241, 0.5);
+        border-color: rgba(239, 68, 68, 0.5);
         background-color: rgba(255, 255, 255, 0.12);
     }
     .track-selector-bar select:focus {
-        border-color: #6366f1;
-        box-shadow: 0 0 0 2px rgba(99, 102, 241, 0.2);
+        border-color: var(--stream-accent);
+        box-shadow: 0 0 0 2px rgba(239, 68, 68, 0.2);
     }
     .track-selector-bar select option {
         background: #1a1a2e;
@@ -85,7 +128,7 @@
         width: 14px;
         height: 14px;
         border: 2px solid rgba(255,255,255,0.1);
-        border-top-color: #6366f1;
+        border-top-color: var(--stream-accent);
         border-radius: 50%;
         animation: spin 0.8s linear infinite;
     }
@@ -97,8 +140,8 @@
         align-items: center;
         gap: 0.35rem;
         padding: 0.2rem 0.6rem;
-        background: rgba(99, 102, 241, 0.15);
-        color: #818cf8;
+        background: rgba(239, 68, 68, 0.15);
+        color: #f87171;
         border-radius: 0.4rem;
         font-size: 0.75rem;
         font-weight: 600;
@@ -118,13 +161,28 @@
         align-items: center;
         gap: 0.5rem;
     }
+    @media (max-width: 640px) {
+        .stream-panel { padding: 1rem; }
+        .stream-stats { grid-template-columns: 1fr 1fr; }
+        .stream-stat:nth-child(2) { border-right: 0; }
+        .stream-stat:nth-child(-n+2) { border-bottom: 1px solid var(--stream-border); }
+        .community-grid { grid-template-columns: 1fr; }
+        .stream-actions, .stream-action { width: 100%; }
+        .track-selector-bar { align-items: flex-start; flex-wrap: wrap; }
+        .track-selector-bar select { flex-basis: calc(100% - 52px); }
+        .track-badge { margin-left: 52px; }
+    }
 </style>
 
-<div class="max-w-4xl mx-auto">
-    <div class="glass-card overflow-hidden mb-4">
+<div class="stream-shell">
+    <div class="mb-4">
+        <span class="stream-kicker">Now streaming</span>
+        <h1 class="file-title text-2xl md:text-4xl font-bold">{{ file.filename }}</h1>
+    </div>
+
+    <div class="player-frame">
         <video id="player" playsinline controls data-poster="/static/images/poster.jpg">
             <source id="video-source" src="/stream/{{ file.short_code }}" type="{{ file.mime_type }}" />
-            <!-- Captions are optional -->
         </video>
     </div>
 
@@ -151,80 +209,70 @@
         </div>
     </div>
 
-    <div class="flex flex-col sm:flex-row gap-4 mb-8">
-        <a href="https://t.me/cantarellabots" target="_blank" class="flex-1 glass p-4 rounded-2xl flex items-center justify-center gap-3 hover:bg-white/10 transition group">
-            <div class="w-10 h-10 bg-indigo-500/20 rounded-full flex items-center justify-center text-indigo-400 group-hover:bg-indigo-500 group-hover:text-white transition">
-                <i class="fab fa-telegram-plane"></i>
-            </div>
-            <div class="text-left">
-                <span class="block text-xs text-gray-400 uppercase tracking-widest">Join Telegram</span>
-                <span class="font-bold">@CantarellaBots</span>
-            </div>
-        </a>
-        <a href="https://t.me/cantarella_wuwa" target="_blank" class="flex-1 glass p-4 rounded-2xl flex items-center justify-center gap-3 hover:bg-white/10 transition group">
-            <div class="w-10 h-10 bg-purple-500/20 rounded-full flex items-center justify-center text-purple-400 group-hover:bg-purple-500 group-hover:text-white transition">
-                <i class="fas fa-user-ninja"></i>
-            </div>
-            <div class="text-left">
-                <span class="block text-xs text-gray-400 uppercase tracking-widest">Developer</span>
-                <span class="font-bold">@cantarella_wuwa</span>
-            </div>
-        </a>
-    </div>
-
-    <div class="glass-card p-8">
+    <section class="stream-panel">
         <div class="flex flex-col md:flex-row justify-between items-start md:items-center gap-6 mb-8">
             <div>
-                <h1 class="text-3xl font-bold mb-2">{{ file.filename }}</h1>
-                <div class="flex gap-4 text-sm text-gray-400">
+                <p class="text-xs font-bold uppercase text-red-400 mb-2" style="letter-spacing:.1em">File details</p>
+                <div class="file-meta">
                     <span><i class="fas fa-database mr-1"></i> {{ (file.file_size / (1024*1024))|round(2) }} MB</span>
                     <span><i class="fas fa-clock mr-1"></i> {{ file.created_at.strftime('%Y-%m-%d') }}</span>
                     <span><i class="fas fa-eye mr-1"></i> {{ file.access_count }} views</span>
                 </div>
             </div>
-            <div class="flex gap-3">
-                <a href="/stream/{{ file.short_code }}" class="btn-gradient px-6 py-3 rounded-xl font-bold flex items-center gap-2">
+            <div class="stream-actions">
+                <a href="/stream/{{ file.short_code }}" class="stream-action stream-action-primary">
                     <i class="fas fa-download"></i> Download
                 </a>
-                <button onclick="copyLink()" class="glass px-6 py-3 rounded-xl font-bold flex items-center gap-2">
-                    <i class="fas fa-copy"></i> Copy
+                <button onclick="copyLink()" class="stream-action stream-action-secondary">
+                    <i class="fas fa-link"></i> Copy link
                 </button>
             </div>
         </div>
 
-        <div class="grid grid-cols-2 md:grid-cols-4 gap-4 mb-8">
-            <div class="bg-white/5 p-4 rounded-2xl text-center">
-                <span class="block text-gray-400 text-xs uppercase tracking-wider mb-1">Status</span>
-                <span class="text-green-400 font-bold">Online</span>
+        <div class="stream-stats mb-8">
+            <div class="stream-stat">
+                <span class="stream-stat-label">Status</span>
+                <span class="stream-stat-value status-online"><i class="fas fa-circle text-xs mr-1"></i> Online</span>
             </div>
-            <div class="bg-white/5 p-4 rounded-2xl text-center">
-                <span class="block text-gray-400 text-xs uppercase tracking-wider mb-1">Type</span>
-                <span class="font-bold">{{ file.mime_type.split('/')[-1]|upper }}</span>
+            <div class="stream-stat">
+                <span class="stream-stat-label">Format</span>
+                <span class="stream-stat-value">{{ file.mime_type.split('/')[-1]|upper }}</span>
             </div>
-            <div class="bg-white/5 p-4 rounded-2xl text-center">
-                <span class="block text-gray-400 text-xs uppercase tracking-wider mb-1">Speed</span>
-                <span class="text-indigo-400 font-bold">Unlimited</span>
+            <div class="stream-stat">
+                <span class="stream-stat-label">Speed</span>
+                <span class="stream-stat-value">Unlimited</span>
             </div>
-            <div id="audio-tracks-count" class="bg-white/5 p-4 rounded-2xl text-center">
-                <span class="block text-gray-400 text-xs uppercase tracking-wider mb-1">Audio</span>
-                <span class="font-bold" id="audio-count-text">Detecting...</span>
+            <div id="audio-tracks-count" class="stream-stat">
+                <span class="stream-stat-label">Audio</span>
+                <span class="stream-stat-value" id="audio-count-text">Detecting...</span>
             </div>
         </div>
 
-        <div class="space-y-4">
-            <h4 class="font-bold text-lg">Stream in Apps</h4>
-            <div class="flex flex-wrap gap-3">
-                <a href="vlc://{{ base_url }}/stream/{{ file.short_code }}" class="bg-orange-500/10 hover:bg-orange-500/20 text-orange-400 px-4 py-2 rounded-lg flex items-center gap-2 transition">
-                    <i class="fas fa-play-circle"></i> VLC
+        <div>
+            <h2 class="font-bold text-base mb-3">Open with</h2>
+            <div class="apps-row">
+                <a href="vlc://{{ base_url }}/stream/{{ file.short_code }}" class="app-link">
+                    <i class="fas fa-play"></i> VLC Player
                 </a>
-                <a href="mxplayer://{{ base_url }}/stream/{{ file.short_code }}" class="bg-blue-500/10 hover:bg-blue-500/20 text-blue-400 px-4 py-2 rounded-lg flex items-center gap-2 transition">
-                    <i class="fas fa-play-circle"></i> MX Player
+                <a href="mxplayer://{{ base_url }}/stream/{{ file.short_code }}" class="app-link">
+                    <i class="fas fa-play"></i> MX Player
                 </a>
-                <a href="nplayer-http://{{ base_url }}/stream/{{ file.short_code }}" class="bg-purple-500/10 hover:bg-purple-500/20 text-purple-400 px-4 py-2 rounded-lg flex items-center gap-2 transition">
-                    <i class="fas fa-play-circle"></i> nPlayer
+                <a href="nplayer-http://{{ base_url }}/stream/{{ file.short_code }}" class="app-link">
+                    <i class="fas fa-play"></i> nPlayer
                 </a>
             </div>
         </div>
+    </section>
+
+    <div class="community-grid">
+        <a href="https://t.me/FilmyflixHD" target="_blank" rel="noopener noreferrer" class="community-link">
+            <span class="community-icon"><i class="fab fa-telegram-plane"></i></span>
+            <span class="min-w-0"><span class="community-label">Main channel</span><span class="community-name">@FilmyflixHD</span></span>
+        </a>
+        <a href="https://t.me/FilmyflixHD_Supportbot" target="_blank" rel="noopener noreferrer" class="community-link">
+            <span class="community-icon"><i class="fas fa-headset"></i></span>
+            <span class="min-w-0"><span class="community-label">Need help?</span><span class="community-name">@FilmyflixHD_Supportbot</span></span>
+        </a>
     </div>
 </div>
 
