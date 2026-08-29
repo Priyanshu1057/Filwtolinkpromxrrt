@@ -18,6 +18,9 @@ class Settings(BaseSettings):
     PORT: int = 8000
     DEBUG: bool = False
     SESSIONS: str = ""
+    ADMIN_PASSWORD: str = ""
+    ADMIN_SESSION_SECRET: str = ""
+    ADMIN_SESSION_HOURS: int = 12
     
     @property
     def admin_list(self):
