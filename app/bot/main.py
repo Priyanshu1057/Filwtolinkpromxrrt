@@ -48,14 +48,14 @@ def register_handlers(bot):
                 "❌ **Access Denied!**\n\n"
                 "You must join our channels to use this bot.\n"
                 "Please join and then send /start again.",
-                buttons=[[Button.url("Join Channel", "https://t.me/cantarellabots")]]
+                buttons=[[Button.url("Join Channel", "https://t.me/FilmyflixHD")]]
             )
 
         await event.respond(
-            "👋 Welcome to CantarellaBots Media Streamer!\n\n"
+            "👋 Welcome to FilmyflixHd Media Streamer!\n\n"
             "Send me any media file and I will generate a direct high-speed download/stream link for you.",
             buttons=[
-                [Button.url("Join Channel", "https://t.me/cantarellabots"), Button.url("Developer", "https://t.me/cantarella_wuwa")],
+                [Button.url("Join Channel", "https://t.me/FilmyflixHD"), Button.url("Support", "https://t.me/FilmyflixHD_Supportbot")],
                 [Button.inline("Help", b"help"), Button.inline("About", b"about")]
             ]
         )
@@ -76,7 +76,7 @@ def register_handlers(bot):
             await event.reply(
                 "❌ **Access Denied!**\n\n"
                 "You must join our channels to use this bot.",
-                buttons=[[Button.url("Join Channel", "https://t.me/cantarellabots")]]
+                buttons=[[Button.url("Join Channel", "https://t.me/FilmyflixHD")]]
             )
             return
 
@@ -170,10 +170,10 @@ def register_handlers(bot):
     @bot.on(events.CallbackQuery(pattern=b'about'))
     async def about_callback(event):
         await event.answer(
-            "🤖 CantarellaBots Media Streamer\n\n"
+            "🤖 FilmyflixHd Media Streamer\n\n"
             "This bot allows you to stream and download Telegram media at high speeds.\n\n"
-            "Channel: @cantarellabots\n"
-            "Developer: @cantarella_wuwa",
+            "Channel: @FilmyflixHD\n"
+            "Support: @FilmyflixHD_Supportbot",
             alert=True
         )
 
