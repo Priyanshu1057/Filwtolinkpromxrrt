@@ -298,12 +298,18 @@
     const IS_ANDROID = /Android/i.test(UA);
     const IS_IOS = /iPad|iPhone|iPod/i.test(UA) || (/Macintosh/.test(UA) && navigator.maxTouchPoints > 1);
 
-    function androidIntent(pkg, cls) {
-        // Android players do not register custom URL schemes; they need an intent:// URL.
-        let i = 'intent://' + STREAM_NO_SCHEME + '#Intent;scheme=' + window.location.protocol.replace(':', '');
-        i += ';action=android.intent.action.VIEW;type=video/*;package=' + pkg;
-        if (cls) i += ';component=' + pkg + '/' + cls;
+    function androidIntent(pkg, extra) {
+        // Android players are launched through an intent:// URL (no custom schemes).
+        // NOTE: no "type=" here – adding a MIME type makes Chrome fail the intent and
+        // fall back to plain navigation, which starts a file download instead.
+        let i = 'intent://' + STREAM_NO_SCHEME + '#Intent';
+        i += ';scheme=' + window.location.protocol.replace(':', '');
+        i += ';package=' + pkg;
+        i += ';action=android.intent.action.VIEW';
         i += ';S.title=' + encodeURIComponent(FILE_TITLE);
+        if (extra) i += extra;
+        // If the app is missing, send the user to the Play Store instead of downloading.
+        i += ';S.browser_fallback_url=' + encodeURIComponent('https://play.google.com/store/apps/details?id=' + pkg);
         i += ';end';
         return i;
     }
@@ -319,23 +325,58 @@
         }
         if (IS_IOS) {
             return {
+                // VLC for iOS: x-callback stream handler (works on iPhone + iPad)
                 vlc: 'vlc-x-callback://x-callback-url/stream?url=' + encodeURIComponent(STREAM_URL),
-                mx: 'mxplayer://' + STREAM_URL,
+                vlcAlt: 'vlc://' + STREAM_NO_SCHEME,
+                // MX Player does not exist on iOS – use Infuse, then OutPlayer
+                mx: 'infuse://x-callback-url/play?url=' + encodeURIComponent(STREAM_URL),
+                mxAlt: 'outplayer://' + STREAM_URL,
                 nplayer: 'nplayer-' + STREAM_URL,
+                nplayerAlt: 'nplayer-https://' + STREAM_NO_SCHEME,
             };
         }
-        // Desktop: VLC has no reliable scheme, hand over the raw URL
-        return { vlc: STREAM_URL, mx: STREAM_URL, nplayer: STREAM_URL };
+        // Desktop: no reliable app scheme -> copy the link instead of navigating
+        // (navigating would just download the file).
+        return { vlc: null, mx: null, nplayer: null };
     }
 
     const LINKS = playerLinks();
 
-    function openExternal(url, fallback) {
-        const t = setTimeout(() => {
-            if (fallback) window.location.href = fallback;
-        }, 1200);
-        window.addEventListener('blur', () => clearTimeout(t), { once: true });
-        window.location.href = url;
+    // Launch an app scheme through a hidden iframe so the page itself never
+    // navigates to the media URL (that is what caused the download).
+    function launchScheme(url) {
+        if (!url) return;
+        const frame = document.createElement('iframe');
+        frame.style.display = 'none';
+        frame.src = url;
+        document.body.appendChild(frame);
+        setTimeout(() => frame.remove(), 4000);
+    }
+
+    async function copyStreamUrl() {
+        try {
+            await navigator.clipboard.writeText(STREAM_URL);
+            return true;
+        } catch (err) {
+            window.prompt('Copy this stream link', STREAM_URL);
+            return false;
+        }
+    }
+
+    function flash(el, html, original) {
+        el.innerHTML = html;
+        setTimeout(() => { el.innerHTML = original; }, 2000);
+    }
+
+    function openInApp(el, primary, alt) {
+        const original = el.innerHTML;
+        if (!primary) {
+            // Desktop fallback: copy link, tell the user where to paste it.
+            copyStreamUrl().then(() => flash(el, '<i class="fas fa-check"></i> Link copied', original));
+            return;
+        }
+        launchScheme(primary);
+        if (alt) setTimeout(() => launchScheme(alt), 900);
     }
 
     function wireOpenWith() {
@@ -345,28 +386,26 @@
         const copyEl = document.getElementById('copy-link');
         const hint = document.getElementById('open-with-hint');
 
-        if (vlcEl) vlcEl.addEventListener('click', (e) => { e.preventDefault(); openExternal(LINKS.vlc); });
-        if (mxEl) mxEl.addEventListener('click', (e) => { e.preventDefault(); openExternal(LINKS.mx, LINKS.mxAlt); });
-        if (npEl) npEl.addEventListener('click', (e) => { e.preventDefault(); openExternal(LINKS.nplayer); });
+        if (vlcEl) vlcEl.addEventListener('click', (e) => { e.preventDefault(); openInApp(vlcEl, LINKS.vlc, LINKS.vlcAlt); });
+        if (mxEl) mxEl.addEventListener('click', (e) => { e.preventDefault(); openInApp(mxEl, LINKS.mx, LINKS.mxAlt); });
+        if (npEl) npEl.addEventListener('click', (e) => { e.preventDefault(); openInApp(npEl, LINKS.nplayer, LINKS.nplayerAlt); });
+
+        if (mxEl && IS_IOS) mxEl.innerHTML = '<i class="fas fa-play"></i> Infuse';
 
         if (copyEl) copyEl.addEventListener('click', async (e) => {
             e.preventDefault();
-            try {
-                await navigator.clipboard.writeText(STREAM_URL);
-                copyEl.innerHTML = '<i class="fas fa-check"></i> Copied';
-                setTimeout(() => { copyEl.innerHTML = '<i class="fas fa-copy"></i> Copy link'; }, 2000);
-            } catch (err) {
-                window.prompt('Copy this stream link', STREAM_URL);
-            }
+            const ok = await copyStreamUrl();
+            if (ok) flash(copyEl, '<i class="fas fa-check"></i> Copied', '<i class="fas fa-copy"></i> Copy link');
         });
 
         if (hint) {
             hint.textContent = IS_ANDROID
-                ? 'Not opening? Copy the link and paste it in your player (VLC: Menu > Stream).'
-                : (IS_IOS ? 'Make sure the app is installed, then tap again.' : 'Paste the copied link into VLC: File > Open Network Stream.');
+                ? 'App not installed? The Play Store opens instead. You can also copy the link and paste it in your player (VLC: Menu > Stream).'
+                : (IS_IOS ? 'Make sure the app is installed, then tap again. Nothing happens? Copy the link and paste it inside the app.' : 'Copy the link, then in VLC use File > Open Network Stream.');
         }
     }
     wireOpenWith();
+
 
 
     // Initialize Plyr
