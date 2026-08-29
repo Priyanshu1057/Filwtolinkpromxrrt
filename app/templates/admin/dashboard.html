@@ -3,6 +3,14 @@
 {% block title %}Admin Dashboard - FastStream{% endblock %}
 
 {% block content %}
+<div class="flex items-center justify-between mb-6">
+    <div class="flex gap-3 text-sm">
+        <a href="/admin" class="hover:text-indigo-400">Dashboard</a>
+        <a href="/admin/users" class="hover:text-indigo-400">Users</a>
+        <a href="/admin/files" class="hover:text-indigo-400">Files</a>
+    </div>
+    <a href="/admin/logout" class="rounded-lg border border-white/10 px-4 py-2 text-sm hover:bg-white/10">Logout</a>
+</div>
 <div class="grid grid-cols-1 md:grid-cols-4 gap-6 mb-12">
     <div class="glass-card p-6">
         <span class="text-gray-400 text-sm uppercase font-bold">Total Users</span>
