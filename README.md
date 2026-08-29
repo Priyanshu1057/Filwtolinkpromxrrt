@@ -1,4 +1,4 @@
-# 🚀 CantarellaBots Media Streamer
+# 🚀 FilmyflixHd Media Streamer
 
 A high-performance Telegram media streaming and direct link generator bot built with FastAPI and Telethon. Designed for extreme speed.
 
@@ -118,8 +118,8 @@ This bot is designed to be easily deployable on modern cloud platforms.
 
 ## 🤝 Support & Credits
 
-- **Developer**: [@cantarella_wuwa](https://t.me/cantarella_wuwa)
-- **Channel**: [@cantarellabots](https://t.me/cantarellabots)
+- **Support**: [@FilmyflixHD_Supportbot](https://t.me/FilmyflixHD_Supportbot)
+- **Channel**: [@FilmyflixHD](https://t.me/FilmyflixHD)
 
 ---
 *Built with ❤️ for the community.*
