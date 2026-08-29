@@ -123,3 +123,22 @@ This bot is designed to be easily deployable on modern cloud platforms.
 
 ---
 *Built with ❤️ for the community.*
+
+## Admin Panel Login
+
+Add these to your `.env`:
+
+```env
+ADMIN_PASSWORD=your-strong-password
+ADMIN_SESSION_SECRET=any-long-random-string   # optional (defaults to BOT_TOKEN)
+ADMIN_SESSION_HOURS=12                        # optional session lifetime
+```
+
+Then open `/admin/login`, enter the password, and you get access to:
+
+- `/admin` — dashboard (users, files, CPU/RAM)
+- `/admin/users` — user list
+- `/admin/files` — search + delete links
+- `/admin/logout` — end the session
+
+Login is protected by a signed HTTP-only cookie and rate limited to 5 attempts per 5 minutes per IP.
