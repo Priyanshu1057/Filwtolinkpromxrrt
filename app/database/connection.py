@@ -21,7 +21,16 @@ class Settings(BaseSettings):
     ADMIN_PASSWORD: str = ""
     ADMIN_SESSION_SECRET: str = ""
     ADMIN_SESSION_HOURS: int = 12
+    # Optional CPU-heavy transcoded quality options (off by default so the
+    # server only ever stream-copies / remuxes).
+    ENABLE_TRANSCODE_QUALITY: bool = False
+    TRANSCODE_QUALITIES: str = "480,720"
+
     
+    @property
+    def transcode_heights(self):
+        return [int(x) for x in self.TRANSCODE_QUALITIES.split(',') if x.strip().isdigit()]
+
     @property
     def admin_list(self):
         return [int(x) for x in self.ADMINS.split(",") if x.strip()]
