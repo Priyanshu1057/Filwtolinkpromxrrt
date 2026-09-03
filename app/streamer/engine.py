@@ -202,7 +202,8 @@ async def get_streaming_response(clients: list[TelegramClient], file, file_size:
 
 # ─── FFmpeg Remux Streaming (Audio Track Switching) ───────────────────────────
 
-async def remux_streamer(client: TelegramClient, file, file_size: int, audio_track: int = 0):
+async def remux_streamer(client: TelegramClient, file, file_size: int, audio_track: int = 0,
+                         video_track: int = 0, max_height: int = 0):
     """
     Stream media through FFmpeg to select a specific audio track.
     
@@ -219,16 +220,32 @@ async def remux_streamer(client: TelegramClient, file, file_size: int, audio_tra
         'ffmpeg',
         '-hide_banner',
         '-loglevel', 'error',
-        '-i', 'pipe:0',                    # Read from stdin
-        '-map', '0:v:0',                   # First video stream
-        '-map', f'0:a:{audio_track}',      # Selected audio stream
-        '-c', 'copy',                      # No transcoding
-        '-f', 'mp4',                       # Output MP4 container
-        '-movflags', 'frag_keyframe+empty_moov+default_base_moof',  # Fragmented MP4
-        'pipe:1'                           # Write to stdout
+        '-i', 'pipe:0',                        # Read from stdin
+        '-map', f'0:v:{video_track}',          # Selected video stream
+        '-map', f'0:a:{audio_track}',          # Selected audio stream
     ]
     
-    logger.info(f"Starting FFmpeg remux: audio_track={audio_track}, file_size={file_size/1024/1024:.1f}MB")
+    if max_height and max_height > 0:
+        # Optional downscale (only used when TRANSCODE quality is explicitly
+        # enabled by the operator - this is the only CPU-heavy path).
+        ffmpeg_cmd += [
+            '-vf', f'scale=-2:min({max_height}\\,ih)',
+            '-c:v', 'libx264', '-preset', 'veryfast', '-crf', '26',
+            '-c:a', 'aac', '-b:a', '128k',
+        ]
+    else:
+        ffmpeg_cmd += ['-c', 'copy']           # No transcoding (default)
+    
+    ffmpeg_cmd += [
+        '-f', 'mp4',                           # Output MP4 container
+        '-movflags', 'frag_keyframe+empty_moov+default_base_moof',  # Fragmented MP4
+        'pipe:1'                               # Write to stdout
+    ]
+    
+    logger.info(
+        f"Starting FFmpeg remux: video_track={video_track}, audio_track={audio_track}, "
+        f"max_height={max_height or 'source'}, file_size={file_size/1024/1024:.1f}MB"
+    )
     
     process = None
     try:
@@ -314,7 +331,9 @@ async def get_remux_response(
     file,
     file_size: int,
     filename: str,
-    audio_track: int = 0
+    audio_track: int = 0,
+    video_track: int = 0,
+    max_height: int = 0
 ):
     """
     Build a StreamingResponse that remuxes media with a selected audio track.
@@ -335,7 +354,7 @@ async def get_remux_response(
     }
     
     return StreamingResponse(
-        remux_streamer(client, file, file_size, audio_track),
+        remux_streamer(client, file, file_size, audio_track, video_track, max_height),
         status_code=200,
         headers=headers,
         media_type="video/mp4"
