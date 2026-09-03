@@ -170,7 +170,8 @@ def _parse_probe_data(probe_data: dict) -> dict:
     audio_tracks = []
     subtitle_tracks = []
     
-    audio_index = 0  # Separate counter for audio-only index
+    audio_index = 0     # Separate counter for audio-only index
+    subtitle_index = 0  # Separate counter for subtitle-only index
     
     for stream in probe_data.get('streams', []):
         codec_type = stream.get('codec_type', '')
@@ -210,19 +211,77 @@ def _parse_probe_data(probe_data: dict) -> dict:
             audio_index += 1
             
         elif codec_type == 'subtitle':
+            codec = stream.get('codec_name', 'unknown')
+            disp = stream.get('disposition', {}) or {}
             subtitle_tracks.append({
-                "index": stream.get('index', 0),
-                "codec": stream.get('codec_name', 'unknown'),
+                "index": stream.get('index', 0),              # Absolute stream index
+                "subtitle_index": subtitle_index,             # Subtitle-only index (for -map 0:s:N)
+                "codec": codec,
                 "language": language,
                 "title": title,
+                "label": _build_subtitle_label(language, title, codec),
+                # Bitmap subtitles (PGS / VOBSUB) cannot be converted to WebVTT
+                "text_based": codec.lower() not in (
+                    'hdmv_pgs_subtitle', 'pgssub', 'dvd_subtitle',
+                    'dvdsub', 'dvb_subtitle', 'xsub',
+                ),
+                "default": bool(disp.get('default')),
+                "forced": bool(disp.get('forced')),
             })
+            subtitle_index += 1
+    
+    # Quality options are taken straight from the embedded video streams,
+    # so offering them needs no transcoding at all.
+    for v_i, v in enumerate(video_tracks):
+        v["video_index"] = v_i
+        v["quality_label"] = _build_quality_label(v)
+    
+    selectable_subs = [s for s in subtitle_tracks if s["text_based"]]
     
     return {
         "video_tracks": video_tracks,
         "audio_tracks": audio_tracks,
         "subtitle_tracks": subtitle_tracks,
         "has_multiple_audio": len(audio_tracks) > 1,
+        "has_subtitles": len(selectable_subs) > 0,
+        "has_multiple_video": len(video_tracks) > 1,
     }
+
+
+def _build_subtitle_label(language: str, title: str, codec: str) -> str:
+    """User friendly label for a subtitle track, e.g. 'English (SRT)'."""
+    lang_names = {
+        'eng': 'English', 'hin': 'Hindi', 'jpn': 'Japanese', 'kor': 'Korean',
+        'spa': 'Spanish', 'fre': 'French', 'fra': 'French', 'ger': 'German',
+        'deu': 'German', 'ita': 'Italian', 'por': 'Portuguese', 'rus': 'Russian',
+        'ara': 'Arabic', 'chi': 'Chinese', 'zho': 'Chinese', 'tam': 'Tamil',
+        'tel': 'Telugu', 'kan': 'Kannada', 'mal': 'Malayalam', 'ben': 'Bengali',
+        'mar': 'Marathi', 'guj': 'Gujarati', 'pan': 'Punjabi', 'urd': 'Urdu',
+        'und': 'Unknown',
+    }
+    lang_display = lang_names.get(language, language.upper() if language else 'Unknown')
+    codec_map = {'subrip': 'SRT', 'ass': 'ASS', 'ssa': 'SSA', 'mov_text': 'TX3G', 'webvtt': 'VTT'}
+    codec_display = codec_map.get((codec or '').lower(), (codec or '').upper())
+    
+    parts = [lang_display]
+    if title and title.lower() != language:
+        parts.append(f'- {title}')
+    if codec_display:
+        parts.append(f'({codec_display})')
+    return ' '.join(parts)
+
+
+def _build_quality_label(video: dict) -> str:
+    """Label an embedded video stream by resolution, e.g. '1080p (H264)'."""
+    height = video.get('height') or 0
+    codec = (video.get('codec') or '').upper()
+    if height >= 2160:
+        name = '4K'
+    elif height > 0:
+        name = f'{height}p'
+    else:
+        name = 'Source'
+    return f'{name} ({codec})' if codec else name
 
 
 def _build_audio_label(language: str, title: str, stream: dict) -> str:
