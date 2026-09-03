@@ -1,6 +1,7 @@
 <!DOCTYPE html>
 <html lang="en" class="dark">
 <head>
+    <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='7' fill='%23dc2626'/%3E%3Ctext x='16' y='22' font-size='18' font-family='Arial' font-weight='bold' text-anchor='middle' fill='white'%3EF%3C/text%3E%3C/svg%3E">
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>{% block title %}FilmyflixHd Media Streamer{% endblock %}</title>
@@ -20,18 +21,22 @@
             background: #000;
         }
 
-        #bg-video {
+        #bg-gradient {
             position: fixed;
-            top: 50%;
-            left: 50%;
-            min-width: 100%;
-            min-height: 100%;
-            width: auto;
-            height: auto;
+            inset: 0;
             z-index: -2;
-            transform: translate(-50%, -50%);
-            object-fit: cover;
-            filter: brightness(0.5);
+            background:
+                radial-gradient(1000px 600px at 12% 8%, rgba(220, 38, 38, 0.30), transparent 60%),
+                radial-gradient(900px 600px at 88% 18%, rgba(251, 191, 36, 0.16), transparent 60%),
+                radial-gradient(1100px 700px at 50% 110%, rgba(99, 102, 241, 0.18), transparent 60%),
+                linear-gradient(160deg, #08080f 0%, #12101c 55%, #08080f 100%);
+            background-size: 200% 200%, 200% 200%, 200% 200%, 100% 100%;
+            animation: bgDrift 24s ease-in-out infinite alternate;
+        }
+
+        @keyframes bgDrift {
+            0%   { background-position: 0% 0%, 100% 0%, 50% 100%, 0 0; }
+            100% { background-position: 20% 30%, 80% 20%, 40% 80%, 0 0; }
         }
 
         .bg-overlay {
@@ -99,9 +104,7 @@
     </style>
 </head>
 <body class="p-4 md:p-8">
-    <video autoplay muted loop playsinline id="bg-video">
-        <source src="/static/filmyflixhd-background.mp4" type="video/mp4">
-    </video>
+    <div id="bg-gradient"></div>
     <div class="bg-overlay"></div>
     <div class="watermark">FilmyflixHd</div>
     <nav class="max-w-6xl mx-auto flex justify-between items-center mb-12 glass p-4 rounded-2xl">
