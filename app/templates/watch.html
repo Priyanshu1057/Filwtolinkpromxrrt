@@ -56,11 +56,28 @@
     .community-icon { width: 38px; height: 38px; flex: 0 0 38px; display: grid; place-items: center; border-radius: 8px; background: rgba(239,68,68,.13); color: #f87171; }
     .community-label { display: block; color: #6b7280; font-size: .65rem; font-weight: 700; letter-spacing: .09em; text-transform: uppercase; }
     .community-name { display: block; overflow: hidden; font-size: .88rem; font-weight: 700; text-overflow: ellipsis; white-space: nowrap; }
+    .track-loading {
+        display: inline-flex;
+        align-items: center;
+        gap: .4rem;
+        font-size: .78rem;
+        color: var(--text-dim, #9aa4b2);
+    }
+    .spinner {
+        width: 12px; height: 12px;
+        border: 2px solid rgba(255,255,255,.25);
+        border-top-color: var(--accent, #e50914);
+        border-radius: 50%;
+        animation: spin .7s linear infinite;
+    }
+    @keyframes spin { to { transform: rotate(360deg); } }
+
     .track-selector-container {
         display: none; margin-top: 1rem;
     }
     .track-selector-container.visible {
-        display: block;
+        display: grid;
+        gap: .6rem;
     }
     .track-selector-bar {
         display: flex;
@@ -186,26 +203,45 @@
         </video>
     </div>
 
-    <!-- Audio Track Selector -->
+    <!-- Audio / Subtitle / Quality Selectors -->
     <div id="track-selector-container" class="track-selector-container">
-        <div class="track-selector-bar">
-            <div class="track-icon">
-                <i class="fas fa-language"></i>
-            </div>
-            <div>
-                <div class="track-label">Audio Track</div>
-            </div>
+        <div id="audio-row" class="track-selector-bar" style="display:none;">
+            <div class="track-icon"><i class="fas fa-language"></i></div>
+            <div><div class="track-label">Audio</div></div>
             <select id="audio-track-select" onchange="switchAudioTrack(this.value)">
-                <option value="-1">Loading tracks...</option>
+                <option value="-1">Loading…</option>
             </select>
             <span id="track-badge" class="track-badge" style="display:none;">
                 <i class="fas fa-check-circle"></i>
                 <span id="track-badge-text">Default</span>
             </span>
         </div>
+
+        <div id="subtitle-row" class="track-selector-bar" style="display:none;">
+            <div class="track-icon"><i class="fas fa-closed-captioning"></i></div>
+            <div><div class="track-label">Subtitles</div></div>
+            <select id="subtitle-select" onchange="switchSubtitle(this.value)">
+                <option value="-1">Off</option>
+            </select>
+            <span id="subtitle-status" class="track-loading" style="display:none;">
+                <span class="spinner"></span><span id="subtitle-status-text">Preparing…</span>
+            </span>
+        </div>
+
+        <div id="quality-row" class="track-selector-bar" style="display:none;">
+            <div class="track-icon"><i class="fas fa-sliders-h"></i></div>
+            <div><div class="track-label">Quality</div></div>
+            <select id="quality-select" onchange="switchQuality(this.value)">
+                <option value="source">Original (Direct, full speed)</option>
+            </select>
+            <span id="quality-badge" class="track-badge" style="display:none;">
+                <i class="fas fa-bolt"></i><span id="quality-badge-text">Direct</span>
+            </span>
+        </div>
+
         <div id="remux-notice" class="remux-notice">
             <i class="fas fa-info-circle"></i>
-            <span>Playing with selected audio track via remux. Seeking may be limited.</span>
+            <span>Playing a re-muxed stream (selected audio/quality). Seeking may be limited.</span>
         </div>
     </div>
 
@@ -251,17 +287,22 @@
         <div>
             <h2 class="font-bold text-base mb-3">Open with</h2>
             <div class="apps-row">
-                <a href="vlc://{{ base_url }}/stream/{{ file.short_code }}" class="app-link">
+                <a href="#" id="open-vlc" class="app-link">
                     <i class="fas fa-play"></i> VLC Player
                 </a>
-                <a href="mxplayer://{{ base_url }}/stream/{{ file.short_code }}" class="app-link">
+                <a href="#" id="open-mx" class="app-link">
                     <i class="fas fa-play"></i> MX Player
                 </a>
-                <a href="nplayer-http://{{ base_url }}/stream/{{ file.short_code }}" class="app-link">
+                <a href="#" id="open-nplayer" class="app-link">
                     <i class="fas fa-play"></i> nPlayer
                 </a>
+                <a href="#" id="copy-link" class="app-link">
+                    <i class="fas fa-copy"></i> Copy link
+                </a>
             </div>
+            <p class="text-xs opacity-60 mt-2" id="open-with-hint"></p>
         </div>
+
     </section>
 
     <div class="community-grid">
@@ -285,6 +326,124 @@
     let tracksData = null;
     let player = null;
 
+    /* ---------- "Open with" external player links (platform aware) ---------- */
+    const STREAM_URL = new URL(ORIGINAL_SRC, window.location.origin).href;   // https://domain/stream/code
+    const STREAM_NO_SCHEME = STREAM_URL.replace(/^https?:\/\//, '');
+    const FILE_TITLE = {{ file.filename|tojson }};
+    const UA = navigator.userAgent || '';
+    const IS_ANDROID = /Android/i.test(UA);
+    const IS_IOS = /iPad|iPhone|iPod/i.test(UA) || (/Macintosh/.test(UA) && navigator.maxTouchPoints > 1);
+
+    function androidIntent(pkg, extra) {
+        // Android players are launched through an intent:// URL (no custom schemes).
+        // NOTE: no "type=" here – adding a MIME type makes Chrome fail the intent and
+        // fall back to plain navigation, which starts a file download instead.
+        let i = 'intent://' + STREAM_NO_SCHEME + '#Intent';
+        i += ';scheme=' + window.location.protocol.replace(':', '');
+        i += ';package=' + pkg;
+        i += ';action=android.intent.action.VIEW';
+        i += ';S.title=' + encodeURIComponent(FILE_TITLE);
+        if (extra) i += extra;
+        // If the app is missing, send the user to the Play Store instead of downloading.
+        i += ';S.browser_fallback_url=' + encodeURIComponent('https://play.google.com/store/apps/details?id=' + pkg);
+        i += ';end';
+        return i;
+    }
+
+    function playerLinks() {
+        if (IS_ANDROID) {
+            return {
+                vlc: androidIntent('org.videolan.vlc'),
+                mx: androidIntent('com.mxtech.videoplayer.ad'),
+                mxAlt: androidIntent('com.mxtech.videoplayer.pro'),
+                nplayer: androidIntent('com.newin.nplayer.nplayer'),
+            };
+        }
+        if (IS_IOS) {
+            return {
+                // VLC for iOS: x-callback stream handler (works on iPhone + iPad)
+                vlc: 'vlc-x-callback://x-callback-url/stream?url=' + encodeURIComponent(STREAM_URL),
+                vlcAlt: 'vlc://' + STREAM_NO_SCHEME,
+                // MX Player does not exist on iOS – use Infuse, then OutPlayer
+                mx: 'infuse://x-callback-url/play?url=' + encodeURIComponent(STREAM_URL),
+                mxAlt: 'outplayer://' + STREAM_URL,
+                nplayer: 'nplayer-' + STREAM_URL,
+                nplayerAlt: 'nplayer-https://' + STREAM_NO_SCHEME,
+            };
+        }
+        // Desktop: no reliable app scheme -> copy the link instead of navigating
+        // (navigating would just download the file).
+        return { vlc: null, mx: null, nplayer: null };
+    }
+
+    const LINKS = playerLinks();
+
+    // Launch an app scheme through a hidden iframe so the page itself never
+    // navigates to the media URL (that is what caused the download).
+    function launchScheme(url) {
+        if (!url) return;
+        const frame = document.createElement('iframe');
+        frame.style.display = 'none';
+        frame.src = url;
+        document.body.appendChild(frame);
+        setTimeout(() => frame.remove(), 4000);
+    }
+
+    async function copyStreamUrl() {
+        try {
+            await navigator.clipboard.writeText(STREAM_URL);
+            return true;
+        } catch (err) {
+            window.prompt('Copy this stream link', STREAM_URL);
+            return false;
+        }
+    }
+
+    function flash(el, html, original) {
+        el.innerHTML = html;
+        setTimeout(() => { el.innerHTML = original; }, 2000);
+    }
+
+    function openInApp(el, primary, alt) {
+        const original = el.innerHTML;
+        if (!primary) {
+            // Desktop fallback: copy link, tell the user where to paste it.
+            copyStreamUrl().then(() => flash(el, '<i class="fas fa-check"></i> Link copied', original));
+            return;
+        }
+        launchScheme(primary);
+        if (alt) setTimeout(() => launchScheme(alt), 900);
+    }
+
+    function wireOpenWith() {
+        const vlcEl = document.getElementById('open-vlc');
+        const mxEl = document.getElementById('open-mx');
+        const npEl = document.getElementById('open-nplayer');
+        const copyEl = document.getElementById('copy-link');
+        const hint = document.getElementById('open-with-hint');
+
+        if (vlcEl) vlcEl.addEventListener('click', (e) => { e.preventDefault(); openInApp(vlcEl, LINKS.vlc, LINKS.vlcAlt); });
+        if (mxEl) mxEl.addEventListener('click', (e) => { e.preventDefault(); openInApp(mxEl, LINKS.mx, LINKS.mxAlt); });
+        if (npEl) npEl.addEventListener('click', (e) => { e.preventDefault(); openInApp(npEl, LINKS.nplayer, LINKS.nplayerAlt); });
+
+        if (mxEl && IS_IOS) mxEl.innerHTML = '<i class="fas fa-play"></i> Infuse';
+
+        if (copyEl) copyEl.addEventListener('click', async (e) => {
+            e.preventDefault();
+            const ok = await copyStreamUrl();
+            if (ok) flash(copyEl, '<i class="fas fa-check"></i> Copied', '<i class="fas fa-copy"></i> Copy link');
+        });
+
+        if (hint) {
+            hint.textContent = IS_ANDROID
+                ? 'App not installed? The Play Store opens instead. You can also copy the link and paste it in your player (VLC: Menu > Stream).'
+                : (IS_IOS ? 'Make sure the app is installed, then tap again. Nothing happens? Copy the link and paste it inside the app.' : 'Copy the link, then in VLC use File > Open Network Stream.');
+        }
+    }
+    wireOpenWith();
+
+
+
     // Initialize Plyr
     player = new Plyr('#player', {
         title: '{{ file.filename }}',
@@ -292,99 +451,218 @@
         tooltips: { controls: true, seek: true },
     });
 
+    /* ---------- Track / subtitle / quality state ---------- */
+    let subtitleTracks = [];
+    let currentSubtitle = -1;       // -1 = off
+    let qualityOptions = [];
+    let currentQuality = 'source';
+
+    function showContainer() {
+        document.getElementById('track-selector-container').classList.add('visible');
+    }
+
+    function setNotice(on) {
+        document.getElementById('remux-notice').classList.toggle('visible', !!on);
+    }
+
     // Fetch track info on page load
     async function loadTracks() {
         try {
             const resp = await fetch('/api/tracks/' + SHORT_CODE);
             if (!resp.ok) throw new Error('Failed to fetch tracks');
-            
+
             tracksData = await resp.json();
-            
+
             const audioTracks = tracksData.audio_tracks || [];
             const countEl = document.getElementById('audio-count-text');
-            
-            if (audioTracks.length === 0) {
-                countEl.textContent = 'N/A';
-                return;
-            }
-            
-            countEl.textContent = audioTracks.length + ' Track' + (audioTracks.length > 1 ? 's' : '');
-            
+            countEl.textContent = audioTracks.length
+                ? audioTracks.length + ' Track' + (audioTracks.length > 1 ? 's' : '')
+                : 'N/A';
+
             if (tracksData.has_multiple_audio) {
-                // Show the track selector
-                const container = document.getElementById('track-selector-container');
-                container.classList.add('visible');
-                
+                showContainer();
+                document.getElementById('audio-row').style.display = '';
+
                 const select = document.getElementById('audio-track-select');
                 select.innerHTML = '';
-                
-                // Add "Original (Direct Stream)" option
+
                 const defaultOpt = document.createElement('option');
                 defaultOpt.value = '-1';
                 defaultOpt.textContent = '\u25B6 Original Stream (Direct, Full Speed)';
                 select.appendChild(defaultOpt);
-                
-                // Add each audio track
+
                 audioTracks.forEach((track, idx) => {
                     const opt = document.createElement('option');
                     opt.value = track.audio_index;
                     opt.textContent = track.label || ('Track ' + (idx + 1));
                     select.appendChild(opt);
                 });
-                
-                // Show badge
+
                 const badge = document.getElementById('track-badge');
                 badge.style.display = 'inline-flex';
                 document.getElementById('track-badge-text').textContent = audioTracks.length + ' available';
             }
-            
+
+            buildSubtitleMenu(tracksData.subtitle_tracks || []);
+            loadQualities();
         } catch (err) {
             console.error('Track loading error:', err);
             document.getElementById('audio-count-text').textContent = 'Error';
         }
     }
 
+    /* ---------- Subtitles (WebVTT, extracted once and cached server-side) ---------- */
+    function buildSubtitleMenu(tracks) {
+        subtitleTracks = (tracks || []).filter(t => t.text_based !== false);
+        if (!subtitleTracks.length) return;
+
+        showContainer();
+        document.getElementById('subtitle-row').style.display = '';
+
+        const select = document.getElementById('subtitle-select');
+        select.innerHTML = '';
+
+        const off = document.createElement('option');
+        off.value = '-1';
+        off.textContent = 'Off';
+        select.appendChild(off);
+
+        subtitleTracks.forEach((t, idx) => {
+            const opt = document.createElement('option');
+            opt.value = t.subtitle_index;
+            opt.textContent = (t.label || ('Subtitle ' + (idx + 1))) + (t.forced ? ' • Forced' : '');
+            select.appendChild(opt);
+        });
+    }
+
+    function clearTextTracks() {
+        const video = document.getElementById('player');
+        video.querySelectorAll('track').forEach(t => t.remove());
+        Array.from(video.textTracks || []).forEach(t => { t.mode = 'disabled'; });
+    }
+
+    function subtitleStatus(text) {
+        const wrap = document.getElementById('subtitle-status');
+        if (!text) { wrap.style.display = 'none'; return; }
+        wrap.style.display = 'inline-flex';
+        document.getElementById('subtitle-status-text').textContent = text;
+    }
+
+    function applySubtitle() {
+        clearTextTracks();
+        if (currentSubtitle < 0) { subtitleStatus(''); return; }
+
+        const meta = subtitleTracks.find(t => t.subtitle_index === currentSubtitle) || {};
+        const video = document.getElementById('player');
+        const el = document.createElement('track');
+        el.kind = 'subtitles';
+        el.label = meta.label || ('Subtitle ' + (currentSubtitle + 1));
+        el.srclang = (meta.language && meta.language !== 'und') ? meta.language.slice(0, 2) : 'en';
+        el.src = '/subtitle/' + SHORT_CODE + '/' + currentSubtitle + '.vtt';
+        el.default = true;
+
+        subtitleStatus('Preparing subtitles…');
+        el.addEventListener('load', () => {
+            subtitleStatus('');
+            const tt = Array.from(video.textTracks || []).find(t => t.label === el.label);
+            if (tt) tt.mode = 'showing';
+        });
+        el.addEventListener('error', () => subtitleStatus('Subtitle unavailable'));
+
+        video.appendChild(el);
+        // Force it on as soon as the browser registers the track
+        setTimeout(() => {
+            const tt = Array.from(video.textTracks || []).find(t => t.label === el.label);
+            if (tt) tt.mode = 'showing';
+        }, 300);
+    }
+
+    function switchSubtitle(index) {
+        currentSubtitle = parseInt(index);
+        applySubtitle();
+    }
+
+    /* ---------- Quality ---------- */
+    async function loadQualities() {
+        try {
+            const resp = await fetch('/api/qualities/' + SHORT_CODE);
+            if (!resp.ok) return;
+            const data = await resp.json();
+            qualityOptions = data.options || [];
+            if (qualityOptions.length < 2) return;
+
+            showContainer();
+            document.getElementById('quality-row').style.display = '';
+
+            const select = document.getElementById('quality-select');
+            select.innerHTML = '';
+            qualityOptions.forEach(o => {
+                const opt = document.createElement('option');
+                opt.value = o.id;
+                opt.textContent = o.label;
+                select.appendChild(opt);
+            });
+
+            const badge = document.getElementById('quality-badge');
+            badge.style.display = 'inline-flex';
+            document.getElementById('quality-badge-text').textContent = 'Direct';
+        } catch (err) {
+            console.error('Quality loading error:', err);
+        }
+    }
+
+    function switchQuality(id) {
+        if (id === currentQuality) return;
+        const option = qualityOptions.find(o => o.id === id);
+        if (!option) return;
+
+        currentQuality = id;
+        const isSource = option.id === 'source';
+        document.getElementById('quality-badge-text').textContent = isSource ? 'Direct' : (option.transcoded ? 'Converted' : 'Remuxed');
+
+        // Quality switching replaces the source, so reset audio selection state
+        currentAudioTrack = -1;
+        const audioSelect = document.getElementById('audio-track-select');
+        if (audioSelect) audioSelect.value = '-1';
+
+        loadSource(option.url, isSource ? '{{ file.mime_type }}' : 'video/mp4', !isSource);
+    }
+
+    /* ---------- Shared source loader (keeps position + subtitles) ---------- */
+    function loadSource(url, type, remuxed) {
+        const video = document.getElementById('player');
+        const source = document.getElementById('video-source');
+        const currentTime = player.currentTime || 0;
+        const wasPlaying = player.playing;
+
+        source.src = url;
+        source.type = type;
+        setNotice(remuxed);
+        video.load();
+
+        const restore = function () {
+            if (!remuxed && currentTime > 0) {
+                try { video.currentTime = currentTime; } catch (e) {}
+            }
+            if (wasPlaying) video.play();
+            applySubtitle();
+            video.removeEventListener('loadedmetadata', restore);
+        };
+        video.addEventListener('loadedmetadata', restore);
+    }
+
     function switchAudioTrack(audioIndex) {
         audioIndex = parseInt(audioIndex);
         if (audioIndex === currentAudioTrack) return;
-        
-        const video = document.getElementById('player');
-        const source = document.getElementById('video-source');
-        const notice = document.getElementById('remux-notice');
-        
-        // Save current playback position
-        const currentTime = player.currentTime || 0;
-        const wasPlaying = player.playing;
-        
-        if (audioIndex === -1) {
-            // Switch back to original direct stream
-            source.src = ORIGINAL_SRC;
-            source.type = '{{ file.mime_type }}';
-            notice.classList.remove('visible');
-        } else {
-            // Switch to remuxed stream with selected audio
-            source.src = REMUX_BASE + '?audio=' + audioIndex;
-            source.type = 'video/mp4';
-            notice.classList.add('visible');
-        }
-        
         currentAudioTrack = audioIndex;
-        
-        // Reload the video
-        video.load();
-        
-        // Try to restore playback position (works for original stream, limited for remux)
-        if (audioIndex === -1 && currentTime > 0) {
-            video.addEventListener('loadedmetadata', function onLoad() {
-                video.currentTime = currentTime;
-                if (wasPlaying) video.play();
-                video.removeEventListener('loadedmetadata', onLoad);
-            });
+
+        if (audioIndex === -1) {
+            currentQuality = 'source';
+            const q = document.getElementById('quality-select');
+            if (q) q.value = 'source';
+            loadSource(ORIGINAL_SRC, '{{ file.mime_type }}', false);
         } else {
-            video.addEventListener('canplay', function onCanPlay() {
-                if (wasPlaying) video.play();
-                video.removeEventListener('canplay', onCanPlay);
-            });
+            loadSource(REMUX_BASE + '?audio=' + audioIndex, 'video/mp4', true);
         }
     }
 
