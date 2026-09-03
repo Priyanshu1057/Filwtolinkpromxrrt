@@ -4,6 +4,7 @@ WORKDIR /app
 
 # Install system dependencies
 RUN apt-get update && apt-get install -y \
+    ffmpeg \
     build-essential \
     libssl-dev \
     libffi-dev \
